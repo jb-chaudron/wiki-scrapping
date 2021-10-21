@@ -32,20 +32,27 @@ def scrap_catart():
 
     while cond:
         req = request_cat(cont_param)
-        cont_param,titre = parse_req(req)
+        cont_param,titre,cond = parse_req(req)
 
         scrap += titre
-        print(titre[0])
+        print(cont_param[0])
 
     return scrap
 
 def parse_req(req):
-    cont_param = req["query-continue"]['allpages']["gapcontinue"]
-    temp_req = req["query"]['pages']
+    if not "query-continue" in req.keys():
+        cond = False
+    else:
+        cont_param = req["query-continue"]['allpages']["gapcontinue"]
+        cond=True
+    if "pages" in req["query"].keys():
+        temp_req = req["query"]['pages']
+        titre = [temp_req[i]["title"] for i in temp_req.keys()]
+    else:
+        titre = []
 
-    titre = [temp_req[i]["title"] for i in temp_req.keys()]
 
-    return cont_param,titre
+    return cont_param,titre,cond
 
 #Sélection du site
 site = pw.Site("wikipedia:fr")
