@@ -27,7 +27,7 @@ def scrap_catart():
 
     cond = True
     req = request_cat()
-    cont_param,titre = parse_req(req)
+    cont_param,titre,cond = parse_req(req)
     scrap = []
 
     while cond:
@@ -35,13 +35,14 @@ def scrap_catart():
         cont_param,titre,cond = parse_req(req)
 
         scrap += titre
-        print(cont_param[0])
+        print(cont_param)
 
     return scrap
 
 def parse_req(req):
     if not "query-continue" in req.keys():
         cond = False
+        cont_param = None
     else:
         cont_param = req["query-continue"]['allpages']["gapcontinue"]
         cond=True
