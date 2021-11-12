@@ -5,6 +5,7 @@ from functools import reduce
 import numpy as np
 from scipy.spatial.distance import pdist,squareform
 from tqdm import tqdm
+from node2vec import Node2Vec
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import silhouette_score, calinski_harabasz_score, davies_bouldin_score
 import networkx as nx
@@ -62,8 +63,8 @@ class Dataclus(object):
         Partie 2) - Embedding et cie
     """
     def embedd_nodes(self,n_dim=40,walk=16,n_walk=100):
-        node2vec = Node2Vec(self.g, dimensions=n_dim, walk_length=walk, num_walks=n_walk)
-        self.model = node2vec.fit(window=10, min_count=1)
+        n2v = Node2Vec(self.g, dimensions=n_dim, walk_length=walk, num_walks=n_walk)
+        self.model = n2v.fit(window=10, min_count=1)
         dat = self.model.wv.vectors[[True if x in set(self.d_art.articles) else False for x in self.g.nodes]]
         self.data = pd.DataFrame(dat,index=[x for x in self.g.nodes if x in self.d_art.articles])
 
