@@ -5,10 +5,11 @@ from functools import reduce
 import numpy as np
 from scipy.spatial.distance import pdist,squareform
 from tqdm import tqdm
-from node2vec import Node2Vec
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import silhouette_score, calinski_harabasz_score, davies_bouldin_score
 import networkx as nx
+from node2vec import Node2Vec
+import multiprocessing
 
 #Def des fonctions
 class Dataclus(object):
@@ -36,6 +37,7 @@ class Dataclus(object):
         self.d_art = d_art
         self.d_cat = d_cat
         self.site = pw.Site("wikipedia:fr")
+        self.it = 0
 
     """
         Partie 1) - Graphes et cie
@@ -44,27 +46,35 @@ class Dataclus(object):
         self.g = nx.Graph()
         self.noeud = random.sample([x for x in set(list(self.d_art.articles)+list(self.d_cat.categorie))],k=400_000)
         self.g.add_nodes_from(self.noeud)
-        self.get_lien()
+        pool = multiprocessing.Pool(4)
+        pool.map(self.get_lien,self.noeud)
 
-    def get_lien(self):
-        for name in tqdm(self.noeud):
-            p = pw.page.BasePage(self.site,name)
-            if p.isRedirectPage() or p.isCategoryRedirect():
-                continue
-            elif p.is_categorypage():
-                cat = pw.Category(self.site,name)
-                out = [x.title() for x in cat.subcategories()]+[x.title() for x in cat.categories()]
-            else:
-                out = [x.title() for x in p.categories()]+[x.title() for x in p.linkedPages()]
+    def get_lien(self,name):
 
+        self.it += 1
+
+        if bool(np.random.binomial(1,0.1)):
+            print(100*self.it/len(self.noeud))
+        else:
+            pass
+
+        p = pw.page.BasePage(self.site,name)
+        if p.isRedirectPage() or p.isCategoryRedirect():
+            pass
+        elif p.is_categorypage():
+            cat = pw.Category(self.site,name)
+            out = [x.title() for x in cat.subcategories()]+[x.title() for x in cat.categories()]
+        else:
+            out = [x.title() for x in p.categories()]
+            #+[x.title() for x in p.linkedPages()]
             self.g.add_edges_from([(name,x) for x in out])
 
     """
         Partie 2) - Embedding et cie
     """
     def embedd_nodes(self,n_dim=40,walk=16,n_walk=100):
-        n2v = Node2Vec(self.g, dimensions=n_dim, walk_length=walk, num_walks=n_walk)
-        self.model = n2v.fit(window=10, min_count=1)
+        node2vec = Node2Vec(self.g, dimensions=n_dim, walk_length=walk, num_walks=n_walk)
+        self.model = node2vec.fit(window=10, min_count=1)
         dat = self.model.wv.vectors[[True if x in set(self.d_art.articles) else False for x in self.g.nodes]]
         self.data = pd.DataFrame(dat,index=[x for x in self.g.nodes if x in self.d_art.articles])
 
@@ -124,7 +134,6 @@ df_article.columns = ["articles"]
 clu = Dataclus(df_article,df_categorie)
 ## 2 - Création du graphe
 clu.gen_graph()
-clu.get_lien()
 ## 3 - Embedding
 clu.embedd_nodes()
 ## 4 - Hyperparameter Tuning
