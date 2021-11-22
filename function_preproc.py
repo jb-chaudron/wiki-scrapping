@@ -88,6 +88,10 @@ def nettoyage(texte):
             5) Stemming
             6) POS Tagging
     """
+    # 1) Lowering
+    out = str(texte).lower()
+
+    # 2) R
 
     return ""
 
@@ -160,3 +164,77 @@ def pand_min(data,ent,tp="col"):
         return data.index[data.loc[:,ent].rank() == data.loc[:,ent].rank().min()][0]
     else:
         print("PB")
+
+"""
+========== Classe pour structurer les données
+"""
+
+class Articles(object):
+    """
+
+    """
+
+    def __init__(self, nom):
+
+        self.nom = nom
+        self.SITE = pw.Site("wikipedia:fr")
+
+
+    """
+    ------ Section 1 : Ouverture & Parsing du texte ------
+    """
+    def ouverture(self):
+        self.page = pw.Page(self.SITE,self.nom)
+        self.texte = self.page.text
+        self.parsed = pw.textlib.extract_sections(self.texte,site=self.SITE)
+
+    def parse(self):
+        node_analysis = lambda a : "".join([analyse_node(j) for j in mwparserfromhell.parse(a).nodes])
+        self.sect = {i.title : nettoyage(node_analysis(i)) for i in self.parsed.sections}
+
+
+    """
+    ------ Section 2 : Structuration en graphe ------
+    """
+    def graph(self):
+        lev = ["= {} = ".format(self.nom)]
+        self.g = nx.Graph()
+        self.g.add_nodes_from(lev+list(self.sect.keys()))
+
+    def lien_graphe(self):
+        """
+            Fonction pour établir le graphe représentant
+            la structure hierarchique des articles
+        """
+        # Fonction établissant le niveau hierarchique de la section
+        trouve = lambda a : int(len(re.findall('[=]',a))/2)-1
+
+        # Initialisation des variables
+        lev = ["= {} = ".format(self.nom)]
+        niv = 0
+        last = lev[0]
+        link = []
+
+        # Boucle pour construire les liens
+        for i in self.sect.keys():
+            """
+                2 tests
+                    - On est à un niveau non répertorié (donc plus bas que ce qui a été vu)
+                    - On est à un niveau hierarchique répertorié
+            """
+            # 1) On définit le niveau grâce à la fonction trouve
+            niv_act = trouve(i)
+
+
+            if len(lev)-1 < niv_act:
+                # 2) Si le niveau est supérieur alors on en créer un nouveau
+                lev += [i]
+                link += [(i,lev[niv_act-1])]
+            else :
+                # 3) Si le niveau est inférieur ou égale, on change la section
+                #    de niveau actuel, et on fait un lien avec la section supérieur
+                lev[niv_act] = i
+                link += [(i,lev[niv_act-1])]
+
+        self.g.add_edges_from(link)
+        
