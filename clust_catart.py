@@ -44,9 +44,10 @@ class Dataclus(object):
     """
     def gen_graph(self):
         self.g = nx.Graph()
-        self.noeud = random.sample([x for x in set(list(self.d_art.articles)+list(self.d_cat.categorie))],k=400_000)
+        #self.noeud = random.sample([x for x in set(list(self.d_art.articles)+list(self.d_cat.categorie))],k=400_000)
+        self.noeud = [x for x in set(list(self.d_art.articles)+list(self.d_cat.categorie))]
         self.g.add_nodes_from(self.noeud)
-        pool = multiprocessing.Pool(4)
+        pool = multiprocessing.Pool(8)
         pool.map(self.get_lien,self.noeud)
 
     def get_lien(self,name):
