@@ -3,6 +3,7 @@ import pywikibot.textlib as pwt
 from functools import reduce
 import pandas as pd
 import numpy as np
+from nltk.tokenize import sentence_tokenizer
 
 
 """
@@ -30,7 +31,7 @@ def analyse_node(node):
     else:
         out = ""
 
-    return out
+    return str(out).lower()
 
 def pars_temp(tex):
     """
@@ -93,7 +94,7 @@ def nettoyage(texte):
 
     # 2) R
 
-    return ""
+    return out
 
 """
 ========== Fonctions post Parsing
@@ -190,13 +191,14 @@ class Articles(object):
 
     def parse(self):
         node_analysis = lambda a : "".join([analyse_node(j) for j in mwparserfromhell.parse(a).nodes])
-        self.sect = {i.title : nettoyage(node_analysis(i)) for i in self.parsed.sections}
+        self.sect = {i.title : node_analysis(i) for i in self.parsed.sections}
+        self.texte = reduce(lambda a,b : " ".join([a,b]),[i[1] for i in self.sect.items()])
 
 
     """
     ------ Section 2 : Structuration en graphe ------
     """
-    def graph(self):
+    def graphe(self):
         lev = ["= {} = ".format(self.nom)]
         self.g = nx.Graph()
         self.g.add_nodes_from(lev+list(self.sect.keys()))
@@ -205,6 +207,8 @@ class Articles(object):
         """
             Fonction pour établir le graphe représentant
             la structure hierarchique des articles
+
+            Rajouter un attribut sur le niveau hierarchique du noeud
         """
         # Fonction établissant le niveau hierarchique de la section
         trouve = lambda a : int(len(re.findall('[=]',a))/2)-1
@@ -237,4 +241,23 @@ class Articles(object):
                 link += [(i,lev[niv_act-1])]
 
         self.g.add_edges_from(link)
+    """
+    ------ Section 3 : Extraction des différentes dimensions d'intérêt ------
+    """
+    def get_phrase_data(self):
+        self.sect_phrase = {i[0] : sentence_tokenizer(i[1]) for i in self.sect.items()}
+        self.nb_ph = {i[0] : len(i[1]) for i in self.sect_phrase.items()}
+        self.lg_ph = {i[0] : [len(j) for j in i[1]] for i in self.sect_phrase.items()}
+
+    def get_mot_token(self):
+        self.mots = word_tokenize(reduce(lambda a,b: " ".join([a,b]), [x[1] for x in self.sect.items()]))
+        self.tok, self.nb_tok = np.unique(self.mots,return_counts=True)
+
+    def get_verb(self):
+        nlp = spacy.load("... French Parser jsp")
+        doc = nlp(reduce(lambda a,b: " ".join([a,b]), [x[1] for x in self.sect.items()]))
+        self.verb = {i[0] : [(x.mode,x.temps) for x in nlp(i[1]) if x.pos_ == "VERB"] for i in self.sect.items()}
+
+    def get_sect(self):
+        self.nb_sect = {i : len([j for j in self.g.nodes if self.g.j["niveau"] == i]) for i in set(self.g.niveau)}
         
