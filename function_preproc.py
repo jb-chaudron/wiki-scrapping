@@ -3,7 +3,8 @@ import pywikibot.textlib as pwt
 from functools import reduce
 import pandas as pd
 import numpy as np
-from nltk.tokenize import sentence_tokenizer
+from nltk import word_tokenize
+from nltk.tokenize import sent_tokenize
 
 
 """
@@ -170,7 +171,7 @@ def pand_min(data,ent,tp="col"):
 ========== Classe pour structurer les données
 """
 
-class Articles(object):
+class Article(object):
     """
 
     """
@@ -218,6 +219,8 @@ class Articles(object):
         niv = 0
         last = lev[0]
         link = []
+        self.g.nodes["= {} = ".format(self.nom)]["niveau"] = trouve("= {} = ".format(self.nom))
+        self.maximum = 0
 
         # Boucle pour construire les liens
         for i in self.sect.keys():
@@ -228,12 +231,14 @@ class Articles(object):
             """
             # 1) On définit le niveau grâce à la fonction trouve
             niv_act = trouve(i)
+            self.maximum = max([self.maximum,niv_act])
 
-
+            self.g.nodes[i]["niveau"] = niv_act
             if len(lev)-1 < niv_act:
                 # 2) Si le niveau est supérieur alors on en créer un nouveau
                 lev += [i]
                 link += [(i,lev[niv_act-1])]
+
             else :
                 # 3) Si le niveau est inférieur ou égale, on change la section
                 #    de niveau actuel, et on fait un lien avec la section supérieur
@@ -241,23 +246,25 @@ class Articles(object):
                 link += [(i,lev[niv_act-1])]
 
         self.g.add_edges_from(link)
+
     """
     ------ Section 3 : Extraction des différentes dimensions d'intérêt ------
     """
-    def get_phrase_data(self):
-        self.sect_phrase = {i[0] : sentence_tokenizer(i[1]) for i in self.sect.items()}
+
+    def get_phrase(self):
+        self.sect_phrase = {i[0] : sent_tokenize(i[1]) for i in self.sect.items()}
         self.nb_ph = {i[0] : len(i[1]) for i in self.sect_phrase.items()}
         self.lg_ph = {i[0] : [len(j) for j in i[1]] for i in self.sect_phrase.items()}
 
-    def get_mot_token(self):
+    def get_mot(self):
         self.mots = word_tokenize(reduce(lambda a,b: " ".join([a,b]), [x[1] for x in self.sect.items()]))
         self.tok, self.nb_tok = np.unique(self.mots,return_counts=True)
 
     def get_verb(self):
-        nlp = spacy.load("... French Parser jsp")
+        nlp = spacy.load("fr_core_news_sm")
+        get_dim = lambda a : [a.morph.get(x) for x in ["Gender","Number","VerbForm","Voice"]]
         doc = nlp(reduce(lambda a,b: " ".join([a,b]), [x[1] for x in self.sect.items()]))
-        self.verb = {i[0] : [(x.mode,x.temps) for x in nlp(i[1]) if x.pos_ == "VERB"] for i in self.sect.items()}
+        self.verb = {i[0] : [get_dim(x) for x in nlp(i[1]) if x.pos_ == "VERB"] for i in self.sect.items()}
 
     def get_sect(self):
-        self.nb_sect = {i : len([j for j in self.g.nodes if self.g.j["niveau"] == i]) for i in set(self.g.niveau)}
-        
+        self.nb_sect = {i : len([j for j in self.g.nodes if self.g.nodes[j]["niveau"] == i]) for i in range(self.maximum+1)}
