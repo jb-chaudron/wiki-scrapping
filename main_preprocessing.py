@@ -1,29 +1,59 @@
-from pywikibot import Site, Page
+import pywikibot as pw
 import pywikibot.textlib as pwt
+import multiprocessing
+import function_preproc as fct
+from tqdm import tqdm
+import nltk
 from functools import reduce
 import pandas as pd
-import numpy as np
-import function_preproc as fct
 
+def concatenation(dfs):
+    colonnes = reduce(lambda a,b: a.union(b), [set(x[1].columns) for x in dfs.items()])
+    indexes = reduce(lambda a,b: a+b, [[x[0]] for x in dfs.items()])
+
+    n_df = pd.DataFrame(0,columns=list(colonnes),index=indexes)
+
+    for i in dfs.keys():
+        n_df.loc[i,dfs[i].columns] = [x for x in dfs[i].iloc[0,:]]
+
+    return n_df
+
+def recup_data(obj):
+    obj.ouverture()
+    cont = obj.parse()
+    if cont:
+        cont = obj.nettoyage()
+        if cont :
+            obj.graphe()
+            obj.lien_graphe()
+            obj.get_sect()
+        else:
+            pass
+    else:
+        pass
+
+
+# 1 - Ouverture etc...
+SITE = pw.Site("wikipedia:fr")
+p = pw.Page(SITE,'Wikipédia:Articles vitaux')
+trc = [i for i in p.linkedPages()]
+data = {i.title() : fct.Article(i.title()) for i in trc}
+
+# 2 - Traitement des données
+nltk.download('punkt')
+nltk.download("stopwords")
 
 """
-    
+pool = multiprocessing.Pool(4)
+pool.map(lambda a : recup_data(a[1]),list(data.items()))
 """
-#Définition du site sur lequel on travail
-SITE = Site("wikipedia:fr")
 
-# Récupération de la page
-p = Page(SITE,"Lyon")
-te = p.text
+for i in tqdm(list(data.keys())):
+    recup_data(data[i])
 
-# 1ère phase de parsing
-pw_pars = pwt.extract_sections(te,site=SITE)
+# 3 - Structuration des données
+dic_df = {x[0] : x[1].data for x in data.items()}
+df_out = concatenation(dic_df)
 
-# 2eme phase de parsing
-text_sect = {i.title : "".join([analyse_node(j) for j in mwparserfromhell.parse(i).nodes]) for i in pw_pars.sections}
-
-
-pre = pwt.removeCategoryLinksAndSeparator(te,site=SITE)
-sec = pwt.removeDisabledParts(pre,site=SITE)
-ter = pwt.removeHTMLParts(sec)
-qua = pwt.removeLanguageLinksAndSeparator(ter,site=SITE)
+# 4 - Exportation du CSV
+df_out.to_csv("data_v1.csv")

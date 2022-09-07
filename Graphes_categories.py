@@ -35,9 +35,6 @@ class Dataclus(object):
     def __init__(self,cat_list, d_art,d_cat):
 
         self.cat_list = cat_list
-
-        self.d_art = d_art
-        self.d_cat = d_cat
         self.site = pw.Site("wikipedia:fr")
         self.it = 0
 
