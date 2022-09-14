@@ -141,19 +141,10 @@ def analyse_node(node):
         elif len(out) == 1:
             out = str(out[0])
         else:
-            out = " ".join([str(x) for x in out]).translate(str.maketrans("","","[]{}"))
+            out = " ".join([str(x) for x in out])
 
     elif node.__class__ == mw.nodes.wikilink.Wikilink:
-        if node.text == None:
-            out = str(node)
-        elif "=" in node.text:
-            #print(str(node))
-            out = clean_temp(" ".join(node.text.split("=")[1:]))
-            if "|" in out:
-                out = ".".join(out.split("|")).translate(str.maketrans("","","[]{}"))
-        else:
-            out = node
-
+        out = str(node)
 
     elif node.__class__ == mw.nodes.text.Text:
         out = str(node.value)
@@ -167,42 +158,23 @@ def analyse_node(node):
 
         out = "< {} >".format(node.level) + " {} ".format(node.title) + "< {} >".format(node.level)
 
-    #elif "tag" in str(node.__class__):
-
-
     else:
 
         out = node
 
     return " "+str(out)
 
-def clean_temp(str_in):
-    str_in = str_in.replace(" =","=")
-    #print(str_in)
-    space = str_in.split(" ")
-    #print(space)
-    egal = [". "+" ".join(x.split("=")[1:]) if "=" in x else x for x in space]
-    #print(egal)
-    if len(egal) == 0 :
-        return " "
-    elif len(egal) == 1:
-        return egal[0]
-    else:
-        return " ".join(egal)
-
 def preparation_texte(texte_in):
-    print("preparation OK")
+
     texte_out = " < 2 > Introduction < 2 > "+texte_in
     return " ".join([" < p_deb > "+x+" < p_fin > " for x in texte_out.split("\n\n")])
 
 def mw_parser(texte_in):
-    print("pre_parsing ok")
+    #print("pre_parsing ok")
     texte_out = mw.parse(texte_in)
-    print("parsing 1 Ok")
-    texte_out = mw.parse("".join([analyse_node(j) for j in texte_out.nodes])).strip_code().strip()
-    print("parsing 2 Ok")
-    texte_out = texte_out
-
+    #print("parsing 1 Ok")
+    texte_out = mw.parse("".join([analyse_node(j) for j in texte_out.nodes])).strip_code()
+    #print("parsing 2 Ok")
     return texte_out
 
 """
@@ -211,13 +183,10 @@ def mw_parser(texte_in):
 preproc = preprocessing.make_pipeline(mw_parser,
                                       preprocessing.normalize.bullet_points,
                                       preprocessing.normalize.quotation_marks,
-                                      lambda text : text.translate(str.maketrans("","","[]{}")),
+                                      lambda text : preprocessing.remove.brackets(text,only=["curly","square"]),
                                       preprocessing.remove.html_tags,
                                       preparation_texte,
                                       preprocessing.normalize.whitespace)
-
-
-
 
 """
 ---------- Spacy Custom Function ----------
@@ -369,9 +338,13 @@ nlp.add_pipe("tag_sect",name="tag_sect",after="remove_bad")
 """
 ---------- Ouverture Articles ----------
 """
+nelly = "/scratch/jchaudro/data/Corpus Nelly.csv"
+df_nelly = pd.read_csv(nelly,sep=";",encoding="latin-1",index_col=0,on_bad_lines='skip')
+articles_nelly = ["france"]+[str.lower(x) for x in df_nelly.index]
+print(len(articles_nelly))
 
 folder_path = "/scratch/jchaudro/data/articles_diachronie"
-files = [join(folder_path, f) for f in listdir(folder_path) if isfile(join(folder_path, f))]
+files = [join(folder_path, f) for f in listdir(folder_path) if (isfile(join(folder_path, f)) and (str.lower(f.split(".")[0]) in articles_nelly))]
 
 
 def open_textes(path):
@@ -382,12 +355,9 @@ def open_textes(path):
             article_temp = pickle.load(f)
             titre = path.split('/')[-1][:-4]
 
-            out = []
-            for article in article_temp:
-                article["titre"] = titre
-                out += [article]
+            out = [article_temp[0]]
+            out[0]["titre"] = titre
 
-            print(np.all(['titre' in list(x.keys()) for x in out]))
             print(titre)
 
         return out
@@ -478,7 +448,7 @@ data = [(doc,meta) for doc,meta in tqdm(data) if "titre" in list(meta.keys()) ]
 #print(data)
 
 print("To Textacy !")
-
+"""
 def textacy_doc(doc_in):
 
     try:
@@ -490,7 +460,7 @@ def textacy_doc(doc_in):
         pass
 
 def main(data):
-    with concurrent.futures.ProcessPoolExecutor(max_workers=20) as executor:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=5) as executor:
         docs = executor.map(textacy_doc,data)
     return docs
 
@@ -499,8 +469,8 @@ print("killed ?")
     #print(docs)
 if __name__ == '__main__':
     docs = main(data)
-
-#docs = [textacy.make_spacy_doc(lang=nlp,data=doc) for doc in tqdm(data)]
+"""
+docs = [textacy.make_spacy_doc(lang=nlp,data=doc) for doc in tqdm(data)]
 del data
 
 #print(docs[0],type(docs[0]),)
