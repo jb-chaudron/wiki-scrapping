@@ -31,10 +31,7 @@ from spacy.language import Language
 ## Textacy
 from textacy import preprocessing
 
-n_work = 10
-init_deb, init_fin = 250,750
-suffixe = "_"+str(init_deb)+"-"+str(init_fin)
-
+n_work = 5
 
 """
 ---------- Metadata Extraction ----------
@@ -193,16 +190,16 @@ def clean_temp(str_in):
         return " ".join(egal)
 
 def preparation_texte(texte_in):
-    print("preparation OK")
+    #print("preparation OK")
     texte_out = " < 2 > Introduction < 2 > "+texte_in
     return " ".join([" < p_deb > "+x+" < p_fin > " for x in texte_out.split("\n\n")])
 
 def mw_parser(texte_in):
-    print("pre_parsing ok")
+    #print("pre_parsing ok")
     texte_out = mw.parse(texte_in)
-    print("parsing 1 Ok")
+    #print("parsing 1 Ok")
     texte_out = mw.parse("".join([analyse_node(j) for j in texte_out.nodes])).strip_code().strip()
-    print("parsing 2 Ok")
+    #print("parsing 2 Ok")
     texte_out = texte_out
 
     return texte_out
@@ -372,8 +369,8 @@ nlp.add_pipe("tag_sect",name="tag_sect",after="remove_bad")
 ---------- Ouverture Articles ----------
 """
 
-folder_path = "/scratch/jchaudro/data/articles_diachronie"
-files = [join(folder_path, f) for f in listdir(folder_path) if isfile(join(folder_path, f))][init_deb:init_fin]
+folder_path = "/scratch/jchaudro/data/articles_diachronie/"
+files = [join(folder_path, f) for f in listdir(folder_path) if isfile(join(folder_path, f))]
 
 
 def open_textes(path):
@@ -389,8 +386,8 @@ def open_textes(path):
                 article["titre"] = titre
                 out += [article]
 
-            print(np.all(['titre' in list(x.keys()) for x in out]))
-            print(titre)
+            #print(np.all(['titre' in list(x.keys()) for x in out]))
+            #print(titre)
 
         return out
 
@@ -398,56 +395,10 @@ def open_textes(path):
         print(path + " -- pass -- ")
         pass
 
-
-with concurrent.futures.ProcessPoolExecutor(max_workers=n_work) as executor:
-    articles = executor.map(open_textes, files)
-
-#articles = [open_textes(texte) for texte in files[30:32]]
-path_full_articles = "/scratch/jchaudro/data/articles_full/"
-
-if not os.path.exists(path_full_articles):
-    os.makedirs(path_full_articles)
-
-print("dump vrac")
-articles = [x for x in tqdm(articles)]
-del files
-
-with open(path_full_articles+"articles_vrac"+suffixe+".pkl", "wb") as fp:   #Pickling
-    pickle.dump(articles,fp)
-
-print("saved")
-
-print("Fin des ouvertures et transformation de textes")
-articles = [article for list_art in tqdm(articles) for article in list_art]
-print("Fin de l'association en une liste")
-
-print("début du dump")
-path_full_articles = "/scratch/jchaudro/data/articles_full/"
-
-if not os.path.exists(path_full_articles):
-    os.makedirs(path_full_articles)
-
-with open(path_full_articles+"tous_articles"+suffixe+".pkl", "wb") as fp:   #Pickling
-    pickle.dump(articles,fp)
-
-print("Sauvegarde de tout les articles")
-
-
 """
----------- Création Objets ----------
+---------- Nettoyage & Preprocessing
 """
-"""
-print("Chargement données")
 
-with open("/scratch/jchaudro/data/articles_full/tous_articles.pkl","rb") as file:
-    articles = pickle.load(file)
-
-print("donnée chargées")
-"""
-docs = []
-meta = []
-
-print("Spacy Pipeline")
 def to_spacy_doc(texte):
     if "texte" in list(texte.keys()):
         try:
@@ -457,7 +408,7 @@ def to_spacy_doc(texte):
             #print(" Preprocessing OK ")
             meta = get_metadata(texte)
 
-            print(texte["titre"]+ " Preproc - Metadata - Réussit")
+            #print(texte["titre"]+ " Preproc - Metadata - Réussit")
             return (texte_clean,meta)
 
         except:
@@ -467,67 +418,95 @@ def to_spacy_doc(texte):
         print("PAS DE TEXTE !!")
         pass
 
-with concurrent.futures.ProcessPoolExecutor(max_workers=n_work) as executor:
-    data = executor.map(to_spacy_doc, articles)
-
-data = [x for x in data if x != None]
-del articles
-
-print("récupération objet data")
-data = [(doc,meta) for doc,meta in tqdm(data) if "titre" in list(meta.keys()) ]
-
-
-#print(data)
-
-print("To Textacy !")
-
 def textacy_doc(doc_in):
 
     try:
-        print(len(doc_in[0]))
-        print(doc_in[1]["titre"])
+        #print(len(doc_in[0]))
+        #print(doc_in[1]["titre"])
         return textacy.make_spacy_doc(lang=nlp,data= doc_in)
     except:
         print("Except ! ")
         pass
 
-def main(data):
-    with concurrent.futures.ProcessPoolExecutor(max_workers=n_work) as executor:
-        docs = executor.map(textacy_doc,data)
-    return docs
+def traitement_sequentiel(file,meta=True):
 
+    #print("Hello !!")
+    with open(file,"rb") as f:
+        print(f)
+        article_temp = pickle.load(f)
+        titre = file.split('/')[-1][:-4]
 
-print("killed ?")
-    #print(docs)
-if __name__ == '__main__':
-    docs = main(data)
+        print("--- Open : "+titre+" ---")
+        if os.path.exists("/scratch/jchaudro/data/corpus/"+titre+".bin"):
+            return None
+        elif not os.path.exists("/scratch/jchaudro/data/clean_meta/"+titre+"pkl") :
+            out = []
+            for article in article_temp:
+                article["titre"] = titre
+                out += [article]
+        elif os.path.exists("/scratch/jchaudro/data/clean_meta/"+titre+"pkl"):
+            with open("/scratch/jchaudro/data/clean_meta/"+titre+"pkl","rb") as f:
+                out = pickle.load(f)
+                nlp.max_length = max([len(doc) for doc,meta for doc in out]) + 100
 
-#docs = [textacy.make_spacy_doc(lang=nlp,data=doc) for doc in tqdm(data)]
-del data
+                print("--- To_textacy ! : "+titre+" ---")
+                out = [textacy_doc((doc,meta)) for doc,meta in out]
 
-#print(docs[0],type(docs[0]),)
-#print(data[0])
-#docs = [textacy.make_spacy_doc(lang=nlp,data= (doc,meta)) for doc,meta in tqdm(data)]
+                print("--- Save Corpus : "+titre+" ---")
+                path_textacy = "/scratch/jchaudro/data/corpus/"
+                if not os.path.exists(path_textacy):
+                    os.makedirs(path_textacy)
+                    corpus = textacy.Corpus(lang=nlp,data=out)
+                    corpus.save(path_textacy+titre+".bin")
 
-print("Textacy Corpus")
-corpus = textacy.Corpus(lang=nlp,data=docs)
+            return None
+        else:
+            print("--- Problème ? ---")
+            print(file)
+            return None
 
-"""
-for doc, meta in  nlp.pipe(data, as_tuples=True,n_process=50,batch_size=50):
-    print(meta)
-    print(doc[:10])
-    doc._.meta = meta
-    docs.append(doc)
-    print(meta["titre"]+" -- Fait -- ")
+        print("--- Dump : "+titre+" ---")
+        path_raw = "/scratch/jchaudro/data/articles_full/"
+        with open(path_raw+titre+".pkl", "wb") as fp:   #Pickling
+            pickle.dump(out,fp)
 
+        print("--- To_spacy : "+titre+" ---")
+        nlp.max_length = max([len(article) for article in out])
+        out = [to_spacy_doc(article) for article in out]
 
-corpus = textacy.Corpus(lang=nlp,data=docs)
-"""
-print("\n Corpus -- Fait -- ")
+        path_clean_meta = "/scratch/jchaudro/data/clean_meta/"
+        if not os.path.exists(path_clean_meta):
+            os.makedirs(path_clean_meta)
 
-path_out = "/scratch/jchaudro/data/corpus"
-if not os.path.exists(path_out):
-    os.makedirs(path_out)
+        with open(path_clean_meta+titre+".pkl", "wb") as fp:   #Pickling
+            pickle.dump(out,fp)
 
-corpus.save(path_out+"/BA_AdQ_all_vers"+suffixe+".bin")
-print("Sauvegardé !")
+        print("--- To_textacy ! : "+titre+" ---")
+        out = [textacy_doc((doc,meta)) for doc,meta in out]
+
+        print("--- Save Corpus : "+titre+" ---")
+        path_textacy = "/scratch/jchaudro/data/corpus/"
+        if not os.path.exists(path_textacy):
+            os.makedirs(path_textacy)
+        corpus = textacy.Corpus(lang=nlp,data=out)
+        corpus.save(path_textacy+titre+".bin")
+
+        return None
+
+def try_except(files):
+    try:
+
+        traitement_sequentiel(files)
+        return None
+    except:
+        return None
+
+print(len(files))
+
+def sort_files(files):
+    return sorted(files,key=lambda a : os.path.getsize(a))
+
+files = sort_files(files)
+
+with tqdm(concurrent.futures.ProcessPoolExecutor(max_workers=n_work),max=len(files)) as executor:
+    articles = executor.map(try_except, files,chunksize=100)
